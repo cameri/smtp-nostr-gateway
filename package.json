@@ -1,0 +1,17 @@
+{
+  "name": "smtp-nostr-gateway",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Ricardo Arturo Cabral Mejía",
+  "license": "MIT",
+  "dependencies": {
+    "@noble/secp256k1": "^1.6.3",
+    "mailparser": "^3.5.0",
+    "smtp-server": "^3.11.0",
+    "ws": "^8.8.1"
+  }
+}

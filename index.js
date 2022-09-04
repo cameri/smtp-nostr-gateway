@@ -8,6 +8,7 @@ const WebSocket = require('ws')
 const relay = 'wss://relay.damus.io'
 const cert = './certs/wlvs.space.crt'
 const key = './certs/wlvs.space.key'
+const allowedPattern = /^[a-f0-9]{64}@wlvs\.space$/ // pubkey-in-hex@wlvs.space
 
 const secret = process.env.SECRET;
 if (typeof secret !== 'string' || !secret.length) {
@@ -75,7 +76,7 @@ const server = new SMTPServer({
   onRcptTo(address, session, callback) {
     console.log('Received mail for', address.address)
 
-    if (!/^[a-f0-9]{64}@wlvs\.space$/.test(address.address)) {
+    if (!allowedPattern.test(address.address)) {
       console.error('Error: Invalid recipient')
       err = new Error("Invalid recipient: " + address.address)
       err.responseCode = 510

@@ -1,6 +1,6 @@
 {
   "name": "smtp-nostr-gateway",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "",
   "main": "index.js",
   "scripts": {
@@ -11,6 +11,7 @@
   "dependencies": {
     "@noble/secp256k1": "^1.6.3",
     "mailparser": "^3.5.0",
+    "nostr": "^0.1.0",
     "smtp-server": "^3.11.0",
     "ws": "^8.8.1"
   }

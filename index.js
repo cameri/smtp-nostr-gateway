@@ -3,9 +3,13 @@ const secp256k1 = require('@noble/secp256k1')
 const { SMTPServer } = require('smtp-server')
 const { simpleParser } = require('mailparser')
 const { getRandomValues, createCipheriv, createHmac } = require('crypto')
-const WebSocket = require('ws')
+const RelayPool = require('nostr')
 
-const relay = 'wss://relay.damus.io'
+const relays = [
+  'wss://relay.damus.io',
+  'wss://nostr-relay.wlvs.space',
+  'wss://nostr-pub.wellorder.net'
+]
 const cert = './certs/wlvs.space.crt'
 const key = './certs/wlvs.space.key'
 const allowedPattern = /^[a-f0-9]{64}@wlvs\.space$/ // pubkey-in-hex@wlvs.space
@@ -15,40 +19,7 @@ if (typeof secret !== 'string' || !secret.length) {
   throw new Error('SECRET is not set or is empty')
 }
 
-let ws
-connectWs()
-
-function connectWs() {
-  ws = new WebSocket(relay)
-
-  const secret = process.env.SECRET;
-  if (typeof secret !== 'string' || !secret.length) {
-    throw new Error('SECRET is not set or is empty')
-  }
-
-  var heartbeat
-  heartbeat = setInterval(() => {
-    ws.ping()
-  }, 10000);
-
-  ws.onopen = () => {
-    console.log('Connected to', relay)
-  }
-
-  ws.onerror = (err) => {
-    console.log('websocket error:', err)
-  }
-
-  ws.onmessage = (event) => {
-    console.log('websocket received: %s', event.data);
-  };
-
-  ws.onclose = () => {
-    clearInterval(heartbeat)
-    console.log('websocket closed')
-    connectWs(relay)
-  }
-}
+const pool = RelayPool(relays)
 
 function encrypt( privkey, pubkey, text ) {
   var key = Buffer.from(secp256k1.getSharedSecret( privkey, '02' + pubkey, true )).toString('hex').substring( 2 );
@@ -113,12 +84,18 @@ const server = new SMTPServer({
 
     const senderPubkey = Buffer.from(secp256k1.getPublicKey(privkey, true)).toString('hex').substring(2)
 
-    const content = `To: ${mail.to.text}\r\nFrom: ${mail.from.text}\r\nSubject: ${mail.subject}\r\n${mail.text}`
+    let content = `To: ${mail.to.text}\r\n`
+    
+    if (mail.cc) {
+      content += `Cc: ${mail.cc.text}\r\n`
+    }
+    
+    content += `From: ${mail.from.text}\r\nSubject: ${mail.subject}\r\n${mail.text}`
 
     const created_at = Math.floor(mail.date.getTime()/1000)
 
-    for (const address of mail.to.value) {
-      const [pubkey] = address.address.match(/^[a-f0-9]+/)
+    const sendMail = async (pubkey) => {
+
       const event = {
         pubkey: senderPubkey,
         kind: 4,
@@ -126,6 +103,7 @@ const server = new SMTPServer({
         created_at,
         tags: [
           ['p', pubkey],
+          ['client', 'smtp-nostr-gateway'],
         ],
       }
 
@@ -143,7 +121,15 @@ const server = new SMTPServer({
       
       console.log(`Mail forwarded to ${pubkey}`)
 
-      ws.send(JSON.stringify(message))
+      pool.relays.forEach((relay) => relay.ws.send(JSON.stringify(message)))
+    }
+
+    for (const address of [...mail.to.value, ...(mail.cc && mail.cc.value || [])]) {
+      if (!allowedPattern.test(address.address)) {
+        continue
+      }
+      const [pubkey] = address.address.match(/^[a-f0-9]+/)
+      await sendMail(pubkey)
     }
   }
 })
